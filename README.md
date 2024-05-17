@@ -11,7 +11,7 @@ Super easy interactive shell for interacting with smart contract on any evm chai
 
 ## How to use
 
-1. Install solizard `go get github.com/zsystm/solizard`
+1. Install solizard `go install github.com/zsystm/solizard@latest`
 2. Place your contract ABI in `$HOME/solizard/*.abi`
 3. Run `solizard`
 
