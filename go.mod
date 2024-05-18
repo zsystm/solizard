@@ -1,6 +1,6 @@
 module solizard
 
-go 1.22
+go 1.22.0
 
 require (
 	github.com/ethereum/go-ethereum v1.14.3
@@ -34,5 +34,3 @@ require (
 	golang.org/x/tools v0.20.0 // indirect
 	rsc.io/tmplfunc v0.0.3 // indirect
 )
-
-replace github.com/ethereum/c-kzg-4844/bindings/go => github.com/ethereum/c-kzg-4844 v1.0.0
