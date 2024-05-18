@@ -161,6 +161,7 @@ func run() {
 				Value:    common.Big0,
 				Gas:      sufficientGasLimit,
 				GasPrice: gasPrice,
+				Data:     input,
 			})
 			signedTx, err := types.SignTx(unsignedTx, types.NewEIP155Signer(&chainID), pk)
 			err = client.SendTransaction(context.TODO(), signedTx)
@@ -170,12 +171,14 @@ func run() {
 			}
 			fmt.Printf("Transaction sent (txHash %v).\n", signedTx.Hash().Hex())
 			// sleep for 5 seconds to wait for transaction to be mined
+			fmt.Println("Waiting for transaction to be mined... (sleep 5 sec)")
 			time.Sleep(5 * time.Second)
 			receipt, err := client.TransactionReceipt(context.TODO(), signedTx.Hash())
 			if err != nil {
 				fmt.Printf("Failed to get transaction receipt (reason: %v).\n", err)
+			} else {
+				fmt.Printf("Transaction receipt: %v\n", receipt)
 			}
-			fmt.Printf("Transaction receipt: %v\n", receipt)
 		}
 		step := MustSelectStep()
 		switch step {
