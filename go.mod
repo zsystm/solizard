@@ -1,4 +1,4 @@
-module solizard
+module github.com/zsystm/solizard
 
 go 1.22
 
