@@ -143,7 +143,7 @@ func run() {
 			}
 			fmt.Printf("Output: %v\n", res)
 		} else {
-			nonce, err := client.PendingNonceAt(context.TODO(), cAddr)
+			nonce, err := client.NonceAt(context.TODO(), cAddr, nil)
 			if err != nil {
 				fmt.Printf("Failed to get nonce (reason: %v), maybe rpc is not working.\n", err)
 				goto INPUT_RPC_URL
