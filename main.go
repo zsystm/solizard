@@ -14,6 +14,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 )
 
@@ -143,7 +144,7 @@ func run() {
 			}
 			fmt.Printf("Output: %v\n", res)
 		} else {
-			nonce, err := client.NonceAt(context.TODO(), cAddr, nil)
+			nonce, err := client.NonceAt(context.TODO(), crypto.PubkeyToAddress(pk.PublicKey), nil)
 			if err != nil {
 				fmt.Printf("Failed to get nonce (reason: %v), maybe rpc is not working.\n", err)
 				goto INPUT_RPC_URL

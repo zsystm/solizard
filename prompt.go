@@ -67,7 +67,7 @@ func MustSelectReadOrWrite() MethodType {
 }
 
 func InputPrivateKey() (*ecdsa.PrivateKey, error) {
-	privateKey, err := getUserInput("Enter your private key to execute contract method (e.g. 0x1234...)")
+	privateKey, err := getUserInput("Enter your private key to execute contract (e.g. 1234..., no 0x prefix)")
 	if err != nil {
 		return nil, err
 	}
