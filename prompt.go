@@ -9,7 +9,7 @@ import (
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/manifoldco/promptui"
+	"github.com/zsystm/promptui"
 )
 
 const DefaultPromptListSize = 10
@@ -73,7 +73,11 @@ func MustSelectReadOrWrite() MethodType {
 }
 
 func InputPrivateKey() (*ecdsa.PrivateKey, error) {
-	privateKey, err := getUserInput("Enter your private key to execute contract (e.g. 1234..., no 0x prefix)")
+	prompt := promptui.Prompt{
+		Label: "Enter your private key to execute contract (e.g. 1234..., no 0x prefix)",
+		Mask:  '*',
+	}
+	privateKey, err := prompt.Run()
 	if err != nil {
 		return nil, err
 	}
