@@ -114,15 +114,10 @@ func run() {
 		}
 	SELECT_METHOD:
 		rw := MustSelectReadOrWrite()
-	INPUT_PRIVATE_KEY:
 		if rw == WriteMethod {
 			// input private key
 			if pk == nil {
-				pk, err = InputPrivateKey()
-				if err != nil {
-					fmt.Printf("Invalid private key (reason: %v), please input valid one\n", err)
-					goto INPUT_PRIVATE_KEY
-				}
+				pk = MustInputPrivateKey()
 			}
 			// input chainID
 			if chainID.Sign() == 0 {

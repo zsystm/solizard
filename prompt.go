@@ -52,7 +52,11 @@ func MustInputRpcUrl() string {
 }
 
 func MustInputContractAddress() string {
-	address, err := getUserInput("Enter the contract address")
+	prompt := promptui.Prompt{
+		Label:    "Enter the contract address",
+		Validate: ValidateAddress,
+	}
+	address, err := prompt.Run()
 	if err != nil {
 		panic(err)
 	}
@@ -72,24 +76,29 @@ func MustSelectReadOrWrite() MethodType {
 	return MethodType(selected)
 }
 
-func InputPrivateKey() (*ecdsa.PrivateKey, error) {
+func MustInputPrivateKey() *ecdsa.PrivateKey {
 	prompt := promptui.Prompt{
-		Label: "Enter your private key to execute contract (e.g. 1234..., no 0x prefix)",
-		Mask:  '*',
+		Label:    "Enter your private key to execute contract (e.g. 1234..., no 0x prefix)",
+		Mask:     '*',
+		Validate: ValidatePrivateKey,
 	}
 	privateKey, err := prompt.Run()
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
 	pk, err := crypto.HexToECDSA(privateKey)
 	if err != nil {
-		return nil, err
+		panic(err)
 	}
-	return pk, nil
+	return pk
 }
 
 func MustInputChainID() big.Int {
-	chainIDStr, err := getUserInput("Enter the chain ID to execute contract method (e.g. 1 for mainnet, 3 for ropsten, 4 for rinkeby, 5 for goerli)")
+	prompt := promptui.Prompt{
+		Label:    "Enter the chain ID to execute contract method (e.g. 1 for mainnet, 3 for ropsten, 4 for rinkeby, 5 for goerli)",
+		Validate: ValidateInt,
+	}
+	chainIDStr, err := prompt.Run()
 	if err != nil {
 		panic(err)
 	}
@@ -162,6 +171,7 @@ func MustCreateInputDataForMethod(method abi.Method) []byte {
 	// get user input for each argument
 	var args []interface{}
 	for _, arg := range arguments {
+		// TODO: Make validation for each type
 		strValue, err := getUserInput(fmt.Sprintf("Enter value for %s (type: %s)", arg.Name, arg.Type))
 		if err != nil {
 			panic(err)
