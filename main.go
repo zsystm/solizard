@@ -172,7 +172,8 @@ func run() {
 			if err != nil {
 				fmt.Printf("Failed to get transaction receipt (reason: %v).\n", err)
 			} else {
-				fmt.Printf("Transaction receipt: %v\n", receipt)
+				jsonReceipt, _ := receipt.MarshalJSON()
+				fmt.Printf("Transaction receipt: %v\n", jsonReceipt)
 			}
 		}
 		step := MustSelectStep()

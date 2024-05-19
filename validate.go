@@ -9,7 +9,6 @@ import (
 )
 
 func ValidateAddress(s string) error {
-	// check given s is valid address or not
 	if !common.IsHexAddress(s) {
 		return fmt.Errorf("invalid address")
 	}
@@ -27,7 +26,6 @@ func ValidatePrivateKey(s string) error {
 }
 
 func ValidateInt(s string) error {
-	// check given s is valid int or not
 	if _, ok := new(big.Int).SetString(s, 10); !ok {
 		return fmt.Errorf("invalid int")
 	}
