@@ -4,6 +4,7 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"math/big"
+	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
@@ -23,6 +24,11 @@ func MustSelectContractABI(abis map[string]abi.ABI) abi.ABI {
 		Label: fmt.Sprintf("Select the contract to interact (total: %d)", len(abis)),
 		Items: contractNames,
 		Size:  DefaultPromptListSize,
+		Searcher: func(input string, index int) bool {
+			// if there is a method name that contains the input, return true
+			return strings.Contains(contractNames[index], input)
+		},
+		StartInSearchMode: shouldSupportSearchMode(len(abis)),
 	}
 
 	_, selected, err := prompt.Run()
@@ -98,6 +104,11 @@ func MustSelectMethod(contractABI abi.ABI, rw MethodType) (string, abi.Method) {
 		Label: fmt.Sprintf("Select Method (total: %d)", len(methodNames)),
 		Items: methodNames,
 		Size:  DefaultPromptListSize,
+		Searcher: func(input string, index int) bool {
+			// if there is a method name that contains the input, return true
+			return strings.Contains(methodNames[index], input)
+		},
+		StartInSearchMode: shouldSupportSearchMode(len(methodNames)),
 	}
 
 	_, selectedMethod, err := prompt.Run()
