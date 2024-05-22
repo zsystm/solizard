@@ -1,27 +1,29 @@
-package main
+package ctx
 
 import (
 	"context"
 	"crypto/ecdsa"
 	"fmt"
 	"math/big"
+	"net/url"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/zsystm/solizard/internal/config"
 )
 
-type Ctx struct {
+type Context struct {
 	ethCli          *ethclient.Client
 	pk              *ecdsa.PrivateKey
 	chainId         big.Int
 	contractAddress *common.Address
 }
 
-// NewCtx creates a new context with the given config.
+// NewCtx creates a new ctx with the given config.
 // If the config is invalid, it will prompt the user to input manually.
-func NewCtx(conf *Config) *Ctx {
-	ctx := &Ctx{}
+func NewCtx(conf *config.Config) *Context {
+	ctx := &Context{}
 	var err error
 
 	errMsg := "failed to apply config file, please input manually when you see the prompt"
@@ -30,7 +32,7 @@ func NewCtx(conf *Config) *Ctx {
 		ctx.pk = nil
 	}
 	// check url validity
-	if err = ValidateRpcURL(conf.RpcURL); err != nil {
+	if _, err := url.ParseRequestURI(conf.RpcURL); err != nil {
 		fmt.Printf("%s (reason: invalid rpc url, err: %v)\n", errMsg, err)
 	} else {
 		rpcURL := conf.RpcURL
@@ -54,35 +56,35 @@ func NewCtx(conf *Config) *Ctx {
 }
 
 // setters
-func (c *Ctx) SetEthClient(cli *ethclient.Client) {
+func (c *Context) SetEthClient(cli *ethclient.Client) {
 	c.ethCli = cli
 }
 
-func (c *Ctx) SetPrivateKey(pk *ecdsa.PrivateKey) {
+func (c *Context) SetPrivateKey(pk *ecdsa.PrivateKey) {
 	c.pk = pk
 }
 
-func (c *Ctx) SetChainId(chainId *big.Int) {
+func (c *Context) SetChainId(chainId *big.Int) {
 	c.chainId.Set(chainId)
 }
 
-func (c *Ctx) SetContractAddress(addr *common.Address) {
+func (c *Context) SetContractAddress(addr *common.Address) {
 	c.contractAddress = addr
 }
 
 // getters
-func (c *Ctx) EthClient() *ethclient.Client {
+func (c *Context) EthClient() *ethclient.Client {
 	return c.ethCli
 }
 
-func (c *Ctx) PrivateKey() *ecdsa.PrivateKey {
+func (c *Context) PrivateKey() *ecdsa.PrivateKey {
 	return c.pk
 }
 
-func (c *Ctx) ChainId() *big.Int {
+func (c *Context) ChainId() *big.Int {
 	return &c.chainId
 }
 
-func (c *Ctx) ContractAddress() *common.Address {
+func (c *Context) ContractAddress() *common.Address {
 	return c.contractAddress
 }

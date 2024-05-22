@@ -1,8 +1,8 @@
-# Solizard :shell:
+# Solizard :lizard:
 
 Super easy interactive shell for interacting with smart contract on any evm chain.
 
-![Quick Demo](./demo.gif)
+![Quick Demo](docs/demo.gif)
 
 ## Features
 

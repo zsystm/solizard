@@ -1,4 +1,4 @@
-package main
+package abi
 
 import (
 	"encoding/json"
@@ -31,8 +31,8 @@ func readABIFile(filepath string) (abi.ABI, error) {
 	return contractABI, nil
 }
 
-// loadABIs reads all abi files in the abiDir and returns a map of contract name to ABI
-func loadABIs(abiDir string) (map[string]abi.ABI, error) {
+// LoadABIs reads all abi files in the abiDir and returns a map of contract name to ABI
+func LoadABIs(abiDir string) (map[string]abi.ABI, error) {
 	// read all abi files in ABI_DIR
 	files, err := os.ReadDir(abiDir)
 	if err != nil {
@@ -41,7 +41,7 @@ func loadABIs(abiDir string) (map[string]abi.ABI, error) {
 
 	mAbi := make(map[string]abi.ABI)
 	for _, f := range files {
-		abiFilepath := AbiDir + "/" + f.Name()
+		abiFilepath := abiDir + "/" + f.Name()
 		contractABI, err := readABIFile(abiFilepath)
 		if err != nil {
 			return nil, err
@@ -51,7 +51,7 @@ func loadABIs(abiDir string) (map[string]abi.ABI, error) {
 	return mAbi, nil
 }
 
-func getMethodsByType(contractABI abi.ABI, rw MethodType) map[string]abi.Method {
+func GetMethodsByType(contractABI abi.ABI, rw MethodType) map[string]abi.Method {
 	readMethods := make(map[string]abi.Method)
 	writeMethods := make(map[string]abi.Method)
 	allMethods := make(map[string]abi.Method)
@@ -77,7 +77,7 @@ func getMethodsByType(contractABI abi.ABI, rw MethodType) map[string]abi.Method 
 	}
 }
 
-func parseArrayOrSliceInput(input string, typ abi.Type) interface{} {
+func ParseArrayOrSliceInput(input string, typ abi.Type) interface{} {
 	// parse the input string for array or slice type
 	// example input format: "[1,2,3]" or "1,2,3"
 	input = strings.Trim(input, "[]")
@@ -107,7 +107,7 @@ func parseArrayOrSliceInput(input string, typ abi.Type) interface{} {
 	return values
 }
 
-func parseTupleInput(input string, typ abi.Type) interface{} {
+func ParseTupleInput(input string, typ abi.Type) interface{} {
 	// parse the input string for tuple type
 	// example input format: "(1,0xabc,true)"
 	input = strings.Trim(input, "()")

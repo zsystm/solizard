@@ -1,4 +1,4 @@
-package main
+package prompt
 
 import (
 	"crypto/ecdsa"
@@ -10,6 +10,9 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/zsystm/promptui"
+	internalabi "github.com/zsystm/solizard/internal/abi"
+	"github.com/zsystm/solizard/internal/step"
+	"github.com/zsystm/solizard/internal/validation"
 )
 
 const DefaultPromptListSize = 10
@@ -56,7 +59,7 @@ func MustInputRpcUrl() string {
 		Label:     "Enter the RPC URL",
 		Default:   DefaultRPCURL,
 		AllowEdit: true,
-		Validate:  ValidateRpcURL,
+		Validate:  validation.ValidateRpcURL,
 	}
 	rpcURL, err := prompt.Run()
 	if err != nil {
@@ -68,7 +71,7 @@ func MustInputRpcUrl() string {
 func MustInputContractAddress() string {
 	prompt := promptui.Prompt{
 		Label:    "Enter the contract address",
-		Validate: ValidateAddress,
+		Validate: validation.ValidateAddress,
 	}
 	address, err := prompt.Run()
 	if err != nil {
@@ -77,24 +80,24 @@ func MustInputContractAddress() string {
 	return address
 }
 
-func MustSelectReadOrWrite() MethodType {
+func MustSelectReadOrWrite() internalabi.MethodType {
 	prompt := promptui.Select{
 		Label: "Read or Write contract",
-		Items: []MethodType{ReadMethod, WriteMethod},
+		Items: []internalabi.MethodType{internalabi.ReadMethod, internalabi.WriteMethod},
 	}
 
 	_, selected, err := prompt.Run()
 	if err != nil {
 		panic(err)
 	}
-	return MethodType(selected)
+	return internalabi.MethodType(selected)
 }
 
 func MustInputPrivateKey() *ecdsa.PrivateKey {
 	prompt := promptui.Prompt{
 		Label:    "Enter your private key to execute contract (e.g. 1234..., no 0x prefix)",
 		Mask:     '*',
-		Validate: ValidatePrivateKey,
+		Validate: validation.ValidatePrivateKey,
 	}
 	privateKey, err := prompt.Run()
 	if err != nil {
@@ -110,7 +113,7 @@ func MustInputPrivateKey() *ecdsa.PrivateKey {
 func MustInputChainID() big.Int {
 	prompt := promptui.Prompt{
 		Label:    "Enter the chain ID to execute contract method (e.g. 1 for mainnet, 3 for ropsten, 4 for rinkeby, 5 for goerli)",
-		Validate: ValidateInt,
+		Validate: validation.ValidateInt,
 	}
 	chainIDStr, err := prompt.Run()
 	if err != nil {
@@ -121,9 +124,9 @@ func MustInputChainID() big.Int {
 	return *chainID
 }
 
-func MustSelectMethod(contractABI abi.ABI, rw MethodType) (string, abi.Method) {
+func MustSelectMethod(contractABI abi.ABI, rw internalabi.MethodType) (string, abi.Method) {
 	var methodNames []string
-	for name := range getMethodsByType(contractABI, rw) {
+	for name := range internalabi.GetMethodsByType(contractABI, rw) {
 		methodNames = append(methodNames, name)
 	}
 
@@ -153,17 +156,17 @@ func getUserInput(promptText string) (string, error) {
 	return prompt.Run()
 }
 
-func MustSelectStep() Step {
+func MustSelectStep() step.Step {
 	prompt := promptui.Select{
 		Label: "Select the next step",
-		Items: []Step{StepChangeContract, StepChangeContractAddress, StepSelectMethod, StepExit},
+		Items: []step.Step{step.StepChangeContract, step.StepChangeContractAddress, step.StepSelectMethod, step.StepExit},
 	}
 
 	_, selected, err := prompt.Run()
 	if err != nil {
 		panic(err)
 	}
-	return Step(selected)
+	return step.Step(selected)
 }
 
 func MustCreateInputDataForMethod(method abi.Method) []byte {
@@ -201,9 +204,9 @@ func MustCreateInputDataForMethod(method abi.Method) []byte {
 		case abi.StringTy:
 			value = strValue
 		case abi.SliceTy, abi.ArrayTy:
-			value = parseArrayOrSliceInput(strValue, arg.Type)
+			value = internalabi.ParseArrayOrSliceInput(strValue, arg.Type)
 		case abi.TupleTy:
-			value = parseTupleInput(strValue, arg.Type)
+			value = internalabi.ParseTupleInput(strValue, arg.Type)
 		case abi.AddressTy:
 			value = common.HexToAddress(strValue)
 		case abi.FixedBytesTy, abi.BytesTy:
@@ -225,4 +228,10 @@ func MustCreateInputDataForMethod(method abi.Method) []byte {
 		panic(err)
 	}
 	return append(method.ID, data...)
+}
+
+const SelectableListSize = 4
+
+func shouldSupportSearchMode(listLen int) bool {
+	return listLen > SelectableListSize
 }
