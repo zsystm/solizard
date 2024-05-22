@@ -2,16 +2,13 @@ package main
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"fmt"
-	"math/big"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
-	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -23,18 +20,31 @@ const Binary = "solizard"
 var (
 	// AbiDir is the directory where all abi files are stored
 	// default is $HOME/solizard/abis
-	AbiDir        = "abis"
-	DefaultRPCURL = "http://localhost:8545"
-	ZeroAddr      = common.Address{}
+	AbiDir      = "abis"
+	ZeroAddr    = common.Address{}
+	ConfigExist = false
+	conf        *Config
 )
 
 func init() {
 	// get user's home directory
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		panic(err)
+		fmt.Printf("failed to get user's home directory (reason: %v)\n", err)
+		os.Exit(1)
 	}
 	AbiDir = homeDir + "/" + Binary + "/" + AbiDir
+	if err := DirContainsFiles(AbiDir); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	ConfigPath := homeDir + "/" + Binary + "/config.toml"
+	conf, err = ReadConfig(ConfigPath)
+	if err != nil {
+		fmt.Printf("failed to read config file (reason: %v)\n", err)
+		ConfigExist = false
+	}
+	ConfigExist = true
 }
 
 func main() {
@@ -46,144 +56,134 @@ func main() {
 	// catch signals and handle program termination
 	go func() {
 		sig := <-sigs
-		fmt.Printf("Terminating program... (reason: %v)\n", sig)
+		fmt.Printf("terminating program... (reason: %v)\n", sig)
 		done <- true
 	}()
 	// run the main program
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				fmt.Printf("Terminating program... (reason: %v)\n", r)
+				fmt.Printf("terminating program... (reason: %v)\n", r)
 				done <- true
 			}
 		}()
-		run()
+		err := run()
+		if err != nil {
+			fmt.Printf("terminating program... (reason: %v)\n", err)
+			done <- true
+		}
 	}()
 
 	<-done
-	fmt.Println("Bye")
+	fmt.Println("terminated")
 }
 
-func run() {
-	// create eth client
-	var client *ethclient.Client
-	var err error
-
-	// read all abi files in ABI_DIR
-	files, err := os.ReadDir(AbiDir)
+func run() error {
+	mAbi, err := loadABIs(AbiDir)
 	if err != nil {
-		panic(err)
-	}
-	// parse all abi files
-	mAbi := make(map[string]abi.ABI)
-	for _, f := range files {
-		abiFilepath := AbiDir + "/" + f.Name()
-		contractABI, err := readABIFile(abiFilepath)
-		if err != nil {
-			panic(err)
-		}
-		mAbi[f.Name()] = contractABI
+		return err
 	}
 
-	var pk *ecdsa.PrivateKey
-	var chainID big.Int
-	var rpcURL string
+	ctx := new(Ctx)
+	if ConfigExist {
+		if MustSelectApplyConfig() {
+			ctx = NewCtx(conf)
+		}
+	}
+
 	// start the main loop
 	for {
 	STEP_SELECT_CONTRACT:
 		selectedAbi := MustSelectContractABI(mAbi)
 	INPUT_RPC_URL:
-		if rpcURL == "" {
-			rpcURL = MustInputRpcUrl()
-			client, err = ethclient.Dial(rpcURL)
+		if ctx.EthClient() == nil {
+			rpcURL := MustInputRpcUrl()
+			client, err := ethclient.Dial(rpcURL)
 			if err != nil {
-				fmt.Printf("Failed to connect to given rpc url: %v, please input valid one\n", err)
+				fmt.Printf("failed to connect to given rpc url: %v, please input valid one\n", err)
 				goto INPUT_RPC_URL
 			}
+			ctx.SetEthClient(client)
 		}
 	INPUT_CONTRACT_ADDRESS:
 		contractAddress := MustInputContractAddress()
-		cAddr := common.HexToAddress(contractAddress)
-		code, err := client.CodeAt(context.TODO(), cAddr, nil)
-		if err != nil {
-			fmt.Printf("Failed to get code at given contract address (reason: %v), maybe non existing contract\n", err)
-		}
-		if len(code) == 0 {
-			fmt.Printf("Given contract address is not a contract address, no bytecode in chain\n")
+		if err := ValidateContractAddress(ctx, contractAddress); err != nil {
+			fmt.Printf("Invalid contract address (reason: %v)\n", err)
 			goto INPUT_CONTRACT_ADDRESS
 		}
 	SELECT_METHOD:
 		rw := MustSelectReadOrWrite()
 		if rw == WriteMethod {
 			// input private key
-			if pk == nil {
-				pk = MustInputPrivateKey()
+			if ctx.PrivateKey() == nil {
+				pk := MustInputPrivateKey()
+				ctx.SetPrivateKey(pk)
 			}
-			// input chainID
-			if chainID.Sign() == 0 {
-				chainID = MustInputChainID()
+			// input chainId
+			if ctx.ChainId().Sign() == 0 {
+				chainID := MustInputChainID()
+				ctx.SetChainId(&chainID)
 			}
 		}
 		methodName, method := MustSelectMethod(selectedAbi, rw)
 		var input []byte
 		input = MustCreateInputDataForMethod(method)
 		if rw == ReadMethod {
-			callMsg := ethereum.CallMsg{From: ZeroAddr, To: &cAddr, Data: input}
-			output, err := client.CallContract(context.TODO(), callMsg, nil)
+			callMsg := ethereum.CallMsg{From: ZeroAddr, To: ctx.ContractAddress(), Data: input}
+			output, err := ctx.EthClient().CallContract(context.TODO(), callMsg, nil)
 			if err != nil {
-				panic(err)
+				return err
 			}
 			res, err := selectedAbi.Unpack(methodName, output)
 			if err != nil {
-				panic(err)
+				return err
 			}
-			fmt.Printf("Output: %v\n", res)
+			fmt.Printf("output: %v\n", res)
 		} else {
-			nonce, err := client.NonceAt(context.TODO(), crypto.PubkeyToAddress(pk.PublicKey), nil)
+			nonce, err := ctx.EthClient().NonceAt(context.TODO(), crypto.PubkeyToAddress(ctx.PrivateKey().PublicKey), nil)
 			if err != nil {
-				fmt.Printf("Failed to get nonce (reason: %v), maybe rpc is not working.\n", err)
+				fmt.Printf("failed to get nonce (reason: %v), maybe rpc is not working.\n", err)
 				goto INPUT_RPC_URL
 			}
-			gasPrice, err := client.SuggestGasPrice(context.TODO())
+			gasPrice, err := ctx.EthClient().SuggestGasPrice(context.TODO())
 			if err != nil {
-				fmt.Printf("Failed to get gas price (reason: %v), maybe rpc is not working.\n", err)
+				fmt.Printf("failed to get gas price (reason: %v), maybe rpc is not working.\n", err)
 				goto INPUT_RPC_URL
 			}
 			sufficientGasLimit := uint64(3000000)
 			unsignedTx := types.NewTx(&types.LegacyTx{
-				To:       &cAddr,
+				To:       ctx.ContractAddress(),
 				Nonce:    nonce,
 				Value:    common.Big0,
 				Gas:      sufficientGasLimit,
 				GasPrice: gasPrice,
 				Data:     input,
 			})
-			signedTx, err := types.SignTx(unsignedTx, types.NewEIP155Signer(&chainID), pk)
-			err = client.SendTransaction(context.TODO(), signedTx)
-			if err != nil {
-				fmt.Printf("Failed to send transaction (reason: %v), maybe rpc is not working.\n", err)
-				goto INPUT_RPC_URL
+			signedTx, err := types.SignTx(unsignedTx, types.NewEIP155Signer(ctx.ChainId()), ctx.PrivateKey())
+			if err = ctx.EthClient().SendTransaction(context.TODO(), signedTx); err != nil {
+				fmt.Printf("failed to send transaction (reason: %v), maybe rpc is not working.\n", err)
+				return err
 			}
-			fmt.Printf("Transaction sent (txHash %v).\n", signedTx.Hash().Hex())
+			fmt.Printf("transaction sent (txHash %v).\n", signedTx.Hash().Hex())
 			// sleep for 5 seconds to wait for transaction to be mined
-			fmt.Println("Waiting for transaction to be mined... (sleep 5 sec)")
+			fmt.Println("waiting for transaction to be mined... (sleep 5 sec)")
 			time.Sleep(5 * time.Second)
-			receipt, err := client.TransactionReceipt(context.TODO(), signedTx.Hash())
+			receipt, err := ctx.EthClient().TransactionReceipt(context.TODO(), signedTx.Hash())
 			if err != nil {
-				fmt.Printf("Failed to get transaction receipt (reason: %v).\n", err)
+				fmt.Printf("failed to get transaction receipt (reason: %v).\n", err)
 			} else {
 				jsonReceipt, _ := receipt.MarshalJSON()
-				fmt.Printf("Transaction receipt: %s\n", string(jsonReceipt))
+				fmt.Printf("transaction receipt: %s\n", string(jsonReceipt))
 			}
 		}
 		step := MustSelectStep()
 		switch step {
-		case StepSelectContract:
-			goto STEP_SELECT_CONTRACT
-		case StepInputContractAddress:
-			goto INPUT_CONTRACT_ADDRESS
 		case StepSelectMethod:
 			goto SELECT_METHOD
+		case StepChangeContract:
+			goto STEP_SELECT_CONTRACT
+		case StepChangeContractAddress:
+			goto INPUT_CONTRACT_ADDRESS
 		case StepExit:
 			panic("exit")
 		}

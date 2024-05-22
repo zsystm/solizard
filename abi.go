@@ -31,6 +31,26 @@ func readABIFile(filepath string) (abi.ABI, error) {
 	return contractABI, nil
 }
 
+// loadABIs reads all abi files in the abiDir and returns a map of contract name to ABI
+func loadABIs(abiDir string) (map[string]abi.ABI, error) {
+	// read all abi files in ABI_DIR
+	files, err := os.ReadDir(abiDir)
+	if err != nil {
+		return nil, err
+	}
+
+	mAbi := make(map[string]abi.ABI)
+	for _, f := range files {
+		abiFilepath := AbiDir + "/" + f.Name()
+		contractABI, err := readABIFile(abiFilepath)
+		if err != nil {
+			return nil, err
+		}
+		mAbi[f.Name()] = contractABI
+	}
+	return mAbi, nil
+}
+
 func getMethodsByType(contractABI abi.ABI, rw MethodType) map[string]abi.Method {
 	readMethods := make(map[string]abi.Method)
 	writeMethods := make(map[string]abi.Method)

@@ -14,6 +14,19 @@ import (
 
 const DefaultPromptListSize = 10
 
+var DefaultRPCURL = "http://localhost:8545"
+
+// MustSelectApplyConfig returns true if the user don't want to setup manually
+// which means the user wants to apply the config file
+func MustSelectApplyConfig() bool {
+	prompt := promptui.Prompt{
+		Label:     "found config file, but do you want to setup manually",
+		IsConfirm: true,
+	}
+	ret, _ := prompt.Run()
+	return strings.ToLower(ret) == "n"
+}
+
 func MustSelectContractABI(abis map[string]abi.ABI) abi.ABI {
 	contractNames := make([]string, 0, len(abis))
 	for name := range abis {
@@ -43,6 +56,7 @@ func MustInputRpcUrl() string {
 		Label:     "Enter the RPC URL",
 		Default:   DefaultRPCURL,
 		AllowEdit: true,
+		Validate:  ValidateRpcURL,
 	}
 	rpcURL, err := prompt.Run()
 	if err != nil {
@@ -142,7 +156,7 @@ func getUserInput(promptText string) (string, error) {
 func MustSelectStep() Step {
 	prompt := promptui.Select{
 		Label: "Select the next step",
-		Items: []Step{StepSelectContract, StepInputContractAddress, StepSelectMethod, StepExit},
+		Items: []Step{StepChangeContract, StepChangeContractAddress, StepSelectMethod, StepExit},
 	}
 
 	_, selected, err := prompt.Run()
