@@ -21,3 +21,9 @@
 go.work
 go.work.sum
 .idea
+
+# config file
+config.toml
+config.yml
+config.xml
+config.ini
