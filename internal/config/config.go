@@ -2,6 +2,7 @@ package config
 
 import (
 	"os"
+	"time"
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
@@ -12,9 +13,10 @@ import (
 const DefaultRpcURL = "http://localhost:8545"
 
 type Config struct {
-	RpcURL     string `toml:"rpc_url"`
-	PrivateKey string `toml:"private_key"`
-	ChainId    uint64 `toml:"chain_id"`
+	RpcURL     string        `toml:"rpc_url"`
+	PrivateKey string        `toml:"private_key"`
+	ChainId    uint64        `toml:"chain_id"`
+	WateTime   time.Duration `toml:"waiting_time_for_transaction"`
 }
 
 func DefaultConfig() *Config {

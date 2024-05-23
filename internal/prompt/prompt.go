@@ -11,13 +11,15 @@ import (
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/zsystm/promptui"
 	internalabi "github.com/zsystm/solizard/internal/abi"
+	"github.com/zsystm/solizard/internal/config"
 	"github.com/zsystm/solizard/internal/step"
 	"github.com/zsystm/solizard/internal/validation"
 )
 
 const DefaultPromptListSize = 10
 
-var DefaultRPCURL = "http://localhost:8545"
+// Change to delegation processing using the Default RPCURL constant in the configuration package.
+//var DefaultRPCURL = "http://localhost:8545"
 
 // MustSelectApplyConfig returns true if the user don't want to setup manually
 // which means the user wants to apply the config file
@@ -57,7 +59,7 @@ func MustSelectContractABI(abis map[string]abi.ABI) abi.ABI {
 func MustInputRpcUrl() string {
 	prompt := promptui.Prompt{
 		Label:     "Enter the RPC URL",
-		Default:   DefaultRPCURL,
+		Default:   config.DefaultRpcURL,
 		AllowEdit: true,
 		Validate:  validation.ValidateRpcURL,
 	}

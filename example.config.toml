@@ -1,6 +1,8 @@
-# 1 - Edit the following fields
-# 2 - Change file name to config.toml
-# 3 - Move config.toml to $HOME/solizard/config.toml
-rpc_url = "http://191.29.34.138:8545"
-private_key = "395fa17a9c24b21e34e9cf94c5a3a271a651b3a7c83a9abb71c1c0508a45abda"
+# local evm rpc
+rpc_url = "http://localhost:8545
+# custom chain id
 chain_id = 7700
+# erc-20
+contract_address = "0xDeE3F3A4135202E3e31A5EEd9bB771CDc5cf32e3"
+# Second = Millisecond(1000) * Microsecond(1000) * Nanosecond(1000) * Duration(1)
+waiting_time_for_transaction = 5000000000 
