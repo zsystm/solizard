@@ -2,7 +2,9 @@ package solizard
 
 import (
 	"context"
+	"embed"
 	"fmt"
+	"io/fs"
 	"os"
 	"time"
 
@@ -19,7 +21,10 @@ import (
 	"github.com/zsystm/solizard/internal/validation"
 )
 
-const Binary = "solizard"
+//go:embed embeds/*
+var embeddedFiles embed.FS
+
+const SolizardDir = ".solizard"
 
 var (
 	// AbiDir is the directory where all abi files are stored
@@ -37,12 +42,52 @@ func init() {
 		fmt.Printf("failed to get user's home directory (reason: %v)\n", err)
 		os.Exit(1)
 	}
-	AbiDir = homeDir + "/" + Binary + "/" + AbiDir
+	dir := homeDir + "/" + SolizardDir
+	AbiDir = dir + "/" + AbiDir
+
+	// initialize .solizard default if not exists
+	if _, err := os.Stat(AbiDir); os.IsNotExist(err) {
+		// create solizard and abi directory if not exists
+		if err := os.MkdirAll(AbiDir, 0755); err != nil {
+			fmt.Printf("failed to create abi directory (reason: %v)\n", err)
+			os.Exit(1)
+		}
+		// copy embeds to directory
+		if err = fs.WalkDir(embeddedFiles, "embeds", func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if d.IsDir() {
+				return nil
+			}
+			data, err := embeddedFiles.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			// if it is a yaml file, write it to abi directory
+			if d.Type().IsRegular() && d.Name()[len(d.Name())-4:] == ".abi" {
+				if err := os.WriteFile(AbiDir+"/"+d.Name(), data, 0644); err != nil {
+					return err
+				}
+			}
+			if d.Type().IsRegular() && d.Name() == "config.toml" {
+				if err := os.WriteFile(homeDir+"/"+SolizardDir+"/config.toml", data, 0644); err != nil {
+					return err
+				}
+			}
+			return nil
+		}); err != nil {
+			fmt.Printf("failed to walk embedded files (reason: %v)\n", err)
+		}
+		// copy embeds to abi directory
+	}
+
+	// check if abi directory contains files
 	if err := validation.DirContainsFiles(AbiDir); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-	ConfigPath := homeDir + "/" + Binary + "/config.toml"
+	ConfigPath := dir + "/" + "config.toml"
 	conf, err = config.ReadConfig(ConfigPath)
 	if err != nil {
 		fmt.Printf("failed to read config file (reason: %v)\n", err)
@@ -99,8 +144,7 @@ func Run() error {
 			}
 		}
 		methodName, method := prompt.MustSelectMethod(selectedAbi, rw)
-		var input []byte
-		input = prompt.MustCreateInputDataForMethod(method)
+		input := prompt.MustCreateInputDataForMethod(method)
 		if rw == abi.ReadMethod {
 			callMsg := ethereum.CallMsg{From: ZeroAddr, To: sctx.ContractAddress(), Data: input}
 			output, err := sctx.EthClient().CallContract(context.TODO(), callMsg, nil)
@@ -123,6 +167,7 @@ func Run() error {
 				fmt.Printf("failed to get gas price (reason: %v), maybe rpc is not working.\n", err)
 				goto INPUT_RPC_URL
 			}
+			// TODO: Change to EthClient().EstimateGas() call.
 			sufficientGasLimit := uint64(3000000)
 			unsignedTx := types.NewTx(&types.LegacyTx{
 				To:       sctx.ContractAddress(),
@@ -133,14 +178,19 @@ func Run() error {
 				Data:     input,
 			})
 			signedTx, err := types.SignTx(unsignedTx, types.NewEIP155Signer(sctx.ChainId()), sctx.PrivateKey())
+			if err != nil {
+				fmt.Printf("failed to SignTx (reason: %v)\n", err)
+				return err
+			}
 			if err = sctx.EthClient().SendTransaction(context.TODO(), signedTx); err != nil {
 				fmt.Printf("failed to send transaction (reason: %v), maybe rpc is not working.\n", err)
 				return err
 			}
 			fmt.Printf("transaction sent (txHash %v).\n", signedTx.Hash().Hex())
-			// sleep for 5 seconds to wait for transaction to be mined
-			fmt.Println("waiting for transaction to be mined... (sleep 5 sec)")
-			time.Sleep(5 * time.Second)
+			// sleep for x seconds to wait for transaction to be mined
+			waitTime, err := time.ParseDuration(conf.WaitTime)
+			fmt.Printf("waiting for transaction to be mined... (sleep %s\n", waitTime.String())
+			time.Sleep(waitTime)
 			receipt, err := sctx.EthClient().TransactionReceipt(context.TODO(), signedTx.Hash())
 			if err != nil {
 				fmt.Printf("failed to get transaction receipt (reason: %v).\n", err)

@@ -1,0 +1,5 @@
+# $HOME/.solizard/config.toml
+rpc_url = "http://127.0.0.1:8545"
+private_key = "395fa17a9c24b21e34e9cf94c5a3a271a651b3a7c83a9abb71c1c0508a45abda"
+chain_id = 7700
+wait_time = "5s"
