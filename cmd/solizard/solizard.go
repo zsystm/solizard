@@ -1,4 +1,4 @@
-package solizard
+package main
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
+
 	"github.com/zsystm/solizard/internal/abi"
 	"github.com/zsystm/solizard/internal/config"
 	"github.com/zsystm/solizard/internal/ctx"

@@ -5,8 +5,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-
-	"github.com/zsystm/solizard/cmd/solizard"
 )
 
 func main() {
@@ -29,7 +27,7 @@ func main() {
 				done <- true
 			}
 		}()
-		err := solizard.Run()
+		err := Run()
 		if err != nil {
 			fmt.Printf("terminating program... (reason: %v)\n", err)
 			done <- true
