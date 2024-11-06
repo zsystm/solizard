@@ -98,6 +98,7 @@ func init() {
 }
 
 func Run() error {
+	fmt.Println(`🦎 Welcome to Solizard v1.4.1 🦎`)
 	mAbi, err := abi.LoadABIs(AbiDir)
 	if err != nil {
 		return err

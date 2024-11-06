@@ -232,7 +232,7 @@ func MustCreateInputDataForMethod(method abi.Method) []byte {
 
 func MustInputValue() *big.Int {
 	prompt := promptui.Prompt{
-		Label:    "Enter the value to be sent with the contract call (in wei).",
+		Label:    "Enter the value to be sent with the contract call (in wei)",
 		Validate: validation.ValidateInt,
 	}
 	valueStr, err := prompt.Run()
