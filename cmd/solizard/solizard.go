@@ -158,6 +158,10 @@ func Run() error {
 			}
 			fmt.Printf("output: %v\n", res)
 		} else {
+			value := common.Big0
+			if method.IsPayable() {
+				value = prompt.MustInputValue()
+			}
 			nonce, err := sctx.EthClient().NonceAt(context.TODO(), crypto.PubkeyToAddress(sctx.PrivateKey().PublicKey), nil)
 			if err != nil {
 				fmt.Printf("failed to get nonce (reason: %v), maybe rpc is not working.\n", err)
@@ -173,7 +177,7 @@ func Run() error {
 			unsignedTx := types.NewTx(&types.LegacyTx{
 				To:       sctx.ContractAddress(),
 				Nonce:    nonce,
-				Value:    common.Big0,
+				Value:    value,
 				Gas:      sufficientGasLimit,
 				GasPrice: gasPrice,
 				Data:     input,

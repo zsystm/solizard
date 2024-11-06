@@ -10,6 +10,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/zsystm/promptui"
+
 	internalabi "github.com/zsystm/solizard/internal/abi"
 	"github.com/zsystm/solizard/internal/config"
 	"github.com/zsystm/solizard/internal/step"
@@ -227,6 +228,20 @@ func MustCreateInputDataForMethod(method abi.Method) []byte {
 		panic(err)
 	}
 	return append(method.ID, data...)
+}
+
+func MustInputValue() *big.Int {
+	prompt := promptui.Prompt{
+		Label:    "Enter the value to be sent with the contract call (in wei).",
+		Validate: validation.ValidateInt,
+	}
+	valueStr, err := prompt.Run()
+	if err != nil {
+		panic(err)
+	}
+	value := new(big.Int)
+	value.SetString(valueStr, 10)
+	return value
 }
 
 const SelectableListSize = 4
