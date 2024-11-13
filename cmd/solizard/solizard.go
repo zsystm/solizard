@@ -31,12 +31,12 @@ const SolizardDir = ".solizard"
 var (
 	// AbiDir is the directory where all abi files are stored
 	// default is $HOME/.solizard/abis
-	AbiDir        = "abis"
-	ZeroAddr      = common.Address{}
-	ConfigExist   = false
-	AddrBookExist = false
-	conf          *config.Config
-	AddrBook      config.AddressBook
+	AbiDir            = "abis"
+	ZeroAddr          = common.Address{}
+	ConfigExist       = false
+	ContractInfoExist = false
+	Conf              *config.Config
+	ContractInfos     []config.ContractInfo
 )
 
 func init() {
@@ -79,8 +79,8 @@ func init() {
 					return err
 				}
 			}
-			if d.Type().IsRegular() && d.Name() == "address_book.json" {
-				if err := os.WriteFile(homeDir+"/"+SolizardDir+"/address_book.json", data, 0644); err != nil {
+			if d.Type().IsRegular() && d.Name() == "contract_infos.json" {
+				if err := os.WriteFile(homeDir+"/"+SolizardDir+"/contract_infos.json", data, 0644); err != nil {
 					return err
 				}
 			}
@@ -97,28 +97,28 @@ func init() {
 		os.Exit(1)
 	}
 	ConfigPath := dir + "/" + "config.toml"
-	if conf, err = config.ReadConfig(ConfigPath); err != nil {
+	if Conf, err = config.ReadConfig(ConfigPath); err != nil {
 		fmt.Printf("failed to read config file (reason: %v)\n", err)
 		ConfigExist = false
 	} else {
 		ConfigExist = true
 	}
 
-	AddrBookPath := dir + "/" + "address_book.json"
-	if AddrBook, err = config.ReadAddressBook(AddrBookPath); err != nil {
-		fmt.Printf("failed to read address book (reason: %v)\n", err)
-		AddrBookExist = false
+	contractInfosPath := dir + "/" + "contract_infos.json"
+	if ContractInfos, err = config.ReadContractInfos(contractInfosPath); err != nil {
+		fmt.Printf("failed to read contract infos (reason: %v)\n", err)
+		ContractInfoExist = false
 	} else {
-		if err = AddrBook.Validate(); err != nil {
+		if err = config.ValidateContractInfos(ContractInfos); err != nil {
 			fmt.Printf("address book is invalid (reason: %v)\n", err)
 			panic(err)
 		}
-		AddrBookExist = true
+		ContractInfoExist = true
 	}
 }
 
 func Run() error {
-	fmt.Println(`🦎 Welcome to Solizard v1.5.0 🦎`)
+	fmt.Println(`🦎 Welcome to Solizard v1.6.0 🦎`)
 	mAbi, err := internalabi.LoadABIs(AbiDir)
 	if err != nil {
 		return err
@@ -127,7 +127,7 @@ func Run() error {
 	sctx := new(ctx.Context)
 	if ConfigExist {
 		if prompt.MustSelectApplyConfig() {
-			sctx = ctx.NewCtx(conf)
+			sctx = ctx.NewCtx(Conf)
 		}
 	}
 
@@ -149,17 +149,20 @@ func Run() error {
 		}
 	INPUT_CONTRACT_ADDRESS:
 		// check if address book exists
-		useAddrBook := false
+		useContractInfo := false
 		var contractAddress string
-		if AddrBookExist {
-			if value, exists := AddrBook[selectedContractName]; exists {
-				if yes := prompt.MustSelectAddressBookUsage(value.Address); yes {
-					contractAddress = value.Address
-					useAddrBook = true
+		if ContractInfoExist {
+			for _, ci := range ContractInfos {
+				if ci.Name == selectedContractName {
+					if yes := prompt.MustSelectAddressBookUsage(ci.Address); yes {
+						contractAddress = ci.Address
+						useContractInfo = true
+						break
+					}
 				}
 			}
 		}
-		if !useAddrBook {
+		if !useContractInfo {
 			contractAddress = prompt.MustInputContractAddress()
 		}
 		if err := validation.ValidateContractAddress(sctx, contractAddress); err != nil {
@@ -230,7 +233,7 @@ func Run() error {
 			}
 			fmt.Printf("transaction sent (txHash %v).\n", signedTx.Hash().Hex())
 			// sleep for x seconds to wait for transaction to be mined
-			waitTime, err := time.ParseDuration(conf.WaitTime)
+			waitTime, err := time.ParseDuration(Conf.WaitTime)
 			fmt.Printf("waiting for transaction to be mined... (sleep %s\n", waitTime.String())
 			time.Sleep(waitTime)
 			receipt, err := sctx.EthClient().TransactionReceipt(context.TODO(), signedTx.Hash())

@@ -80,31 +80,52 @@ func GetMethodsByType(contractABI abi.ABI, rw MethodType) map[string]abi.Method 
 func ParseArrayOrSliceInput(input string, typ abi.Type) interface{} {
 	// parse the input string for array or slice type
 	// example input format: "[1,2,3]" or "1,2,3"
+	// 1. trim whitespace
+	input = strings.ReplaceAll(input, " ", "")
+	// 2. remove brackets if present
 	input = strings.Trim(input, "[]")
+	// 3. split the input string by comma
 	parts := strings.Split(input, ",")
-	values := make([]interface{}, len(parts))
-
-	for i, part := range parts {
-		var value interface{}
+	var addresses []common.Address
+	var integers []*big.Int
+	var booleans []bool
+	var strings []string
+	var bytes [][]byte
+	var hashes []common.Hash
+	for _, part := range parts {
 		switch typ.Elem.T {
 		case abi.IntTy, abi.UintTy:
-			value, _ = new(big.Int).SetString(part, 10)
+			value, _ := new(big.Int).SetString(part, 10)
+			integers = append(integers, value)
 		case abi.BoolTy:
-			value = part == "true"
+			booleans = append(booleans, part == "true")
 		case abi.StringTy:
-			value = part
+			strings = append(strings, part)
 		case abi.AddressTy:
-			value = common.HexToAddress(part)
+			v := common.HexToAddress(part)
+			addresses = append(addresses, v)
 		case abi.FixedBytesTy, abi.BytesTy:
-			value = common.Hex2Bytes(part)
+			bytes = append(bytes, common.Hex2Bytes(part))
 		case abi.HashTy:
-			value = common.HexToHash(part)
+			hashes = append(hashes, common.HexToHash(part))
 		default:
 			panic("unsupported array or slice element type: " + typ.Elem.String())
 		}
-		values[i] = value
 	}
-	return values
+	if len(addresses) > 0 {
+		return addresses
+	} else if len(integers) > 0 {
+		return integers
+	} else if len(booleans) > 0 {
+		return booleans
+	} else if len(strings) > 0 {
+		return strings
+	} else if len(bytes) > 0 {
+		return bytes
+	} else if len(hashes) > 0 {
+		return hashes
+	}
+	return nil
 }
 
 func ParseTupleInput(input string, typ abi.Type) interface{} {
