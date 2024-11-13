@@ -9,12 +9,13 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum"
+	"github.com/ethereum/go-ethereum/accounts/abi"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/ethereum/go-ethereum/ethclient"
 
-	"github.com/zsystm/solizard/internal/abi"
+	internalabi "github.com/zsystm/solizard/internal/abi"
 	"github.com/zsystm/solizard/internal/config"
 	"github.com/zsystm/solizard/internal/ctx"
 	"github.com/zsystm/solizard/internal/prompt"
@@ -29,11 +30,13 @@ const SolizardDir = ".solizard"
 
 var (
 	// AbiDir is the directory where all abi files are stored
-	// default is $HOME/solizard/abis
-	AbiDir      = "abis"
-	ZeroAddr    = common.Address{}
-	ConfigExist = false
-	conf        *config.Config
+	// default is $HOME/.solizard/abis
+	AbiDir        = "abis"
+	ZeroAddr      = common.Address{}
+	ConfigExist   = false
+	AddrBookExist = false
+	conf          *config.Config
+	AddrBook      config.AddressBook
 )
 
 func init() {
@@ -76,6 +79,11 @@ func init() {
 					return err
 				}
 			}
+			if d.Type().IsRegular() && d.Name() == "address_book.json" {
+				if err := os.WriteFile(homeDir+"/"+SolizardDir+"/address_book.json", data, 0644); err != nil {
+					return err
+				}
+			}
 			return nil
 		}); err != nil {
 			fmt.Printf("failed to walk embedded files (reason: %v)\n", err)
@@ -89,17 +97,29 @@ func init() {
 		os.Exit(1)
 	}
 	ConfigPath := dir + "/" + "config.toml"
-	conf, err = config.ReadConfig(ConfigPath)
-	if err != nil {
+	if conf, err = config.ReadConfig(ConfigPath); err != nil {
 		fmt.Printf("failed to read config file (reason: %v)\n", err)
 		ConfigExist = false
+	} else {
+		ConfigExist = true
 	}
-	ConfigExist = true
+
+	AddrBookPath := dir + "/" + "address_book.json"
+	if AddrBook, err = config.ReadAddressBook(AddrBookPath); err != nil {
+		fmt.Printf("failed to read address book (reason: %v)\n", err)
+		AddrBookExist = false
+	} else {
+		if err = AddrBook.Validate(); err != nil {
+			fmt.Printf("address book is invalid (reason: %v)\n", err)
+			panic(err)
+		}
+		AddrBookExist = true
+	}
 }
 
 func Run() error {
-	fmt.Println(`🦎 Welcome to Solizard v1.4.1 🦎`)
-	mAbi, err := abi.LoadABIs(AbiDir)
+	fmt.Println(`🦎 Welcome to Solizard v1.5.0 🦎`)
+	mAbi, err := internalabi.LoadABIs(AbiDir)
 	if err != nil {
 		return err
 	}
@@ -111,10 +131,12 @@ func Run() error {
 		}
 	}
 
+	var selectedContractName string
+	var selectedAbi abi.ABI
 	// start the main loop
 	for {
 	STEP_SELECT_CONTRACT:
-		selectedAbi := prompt.MustSelectContractABI(mAbi)
+		selectedContractName, selectedAbi = prompt.MustSelectContractABI(mAbi)
 	INPUT_RPC_URL:
 		if sctx.EthClient() == nil {
 			rpcURL := prompt.MustInputRpcUrl()
@@ -126,14 +148,28 @@ func Run() error {
 			sctx.SetEthClient(client)
 		}
 	INPUT_CONTRACT_ADDRESS:
-		contractAddress := prompt.MustInputContractAddress()
+		// check if address book exists
+		useAddrBook := false
+		var contractAddress string
+		if AddrBookExist {
+			if value, exists := AddrBook[selectedContractName]; exists {
+				if yes := prompt.MustSelectAddressBookUsage(value.Address); yes {
+					contractAddress = value.Address
+					useAddrBook = true
+				}
+			}
+		}
+		if !useAddrBook {
+			contractAddress = prompt.MustInputContractAddress()
+		}
 		if err := validation.ValidateContractAddress(sctx, contractAddress); err != nil {
 			fmt.Printf("Invalid contract address (reason: %v)\n", err)
 			goto INPUT_CONTRACT_ADDRESS
 		}
+
 	SELECT_METHOD:
 		rw := prompt.MustSelectReadOrWrite()
-		if rw == abi.WriteMethod {
+		if rw == internalabi.WriteMethod {
 			// input private key
 			if sctx.PrivateKey() == nil {
 				pk := prompt.MustInputPrivateKey()
@@ -147,7 +183,7 @@ func Run() error {
 		}
 		methodName, method := prompt.MustSelectMethod(selectedAbi, rw)
 		input := prompt.MustCreateInputDataForMethod(method)
-		if rw == abi.ReadMethod {
+		if rw == internalabi.ReadMethod {
 			callMsg := ethereum.CallMsg{From: ZeroAddr, To: sctx.ContractAddress(), Data: input}
 			output, err := sctx.EthClient().CallContract(context.TODO(), callMsg, nil)
 			if err != nil {

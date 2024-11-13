@@ -23,14 +23,17 @@ const DefaultPromptListSize = 10
 // which means the user wants to apply the config file
 func MustSelectApplyConfig() bool {
 	prompt := promptui.Prompt{
-		Label:     "found config file, but do you want to setup manually",
-		IsConfirm: true,
+		Label: "found config file at ~/.solizard/config.toml, apply? [Y/n]",
 	}
 	ret, _ := prompt.Run()
-	return strings.ToLower(ret) == "n"
+	if NoSelected(ret) {
+		return false
+	}
+	return true
 }
 
-func MustSelectContractABI(abis map[string]abi.ABI) abi.ABI {
+// MustSelectContractABI prompts the user to select a contract ABI and returns the selected contract name and ABI
+func MustSelectContractABI(abis map[string]abi.ABI) (string, abi.ABI) {
 	contractNames := make([]string, 0, len(abis))
 	for name := range abis {
 		contractNames = append(contractNames, name)
@@ -51,7 +54,7 @@ func MustSelectContractABI(abis map[string]abi.ABI) abi.ABI {
 	if err != nil {
 		panic(err)
 	}
-	return abis[selected]
+	return strings.TrimSuffix(selected, ".abi"), abis[selected]
 }
 
 func MustInputRpcUrl() string {
@@ -66,6 +69,17 @@ func MustInputRpcUrl() string {
 		panic(err)
 	}
 	return rpcURL
+}
+
+func MustSelectAddressBookUsage(contractAddr string) bool {
+	prompt := promptui.Prompt{
+		Label: fmt.Sprintf("Use %s as contract address? [Y/n]", contractAddr),
+	}
+	ret, _ := prompt.Run()
+	if NoSelected(ret) {
+		return false
+	}
+	return true
 }
 
 func MustInputContractAddress() string {
@@ -248,4 +262,8 @@ const SelectableListSize = 4
 
 func shouldSupportSearchMode(listLen int) bool {
 	return listLen > SelectableListSize
+}
+
+func NoSelected(s string) bool {
+	return strings.ToLower(s) == "n"
 }
