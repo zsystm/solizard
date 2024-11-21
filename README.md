@@ -2,7 +2,7 @@
 
 Super easy interactive shell for interacting with smart contract on any evm chain.
 
-![Quick Demo](docs/demo.gif)
+<img src="docs/demo.gif" alt="Demo" width="600">
 
 ## Features
 
