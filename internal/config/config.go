@@ -45,6 +45,20 @@ func ReadConfig(path string) (*Config, error) {
 	return cfg, nil
 }
 
+func WriteConfig(path string, conf *Config) error {
+	if err := conf.Validate(); err != nil {
+		return err
+	}
+	data, err := toml.Marshal(conf)
+	if err != nil {
+		return err
+	}
+	if err = os.WriteFile(path, data, 0644); err != nil {
+		return err
+	}
+	return nil
+}
+
 func (c *Config) Validate() error {
 	// Other fields are validated in NewCtx
 	failMsg := "config file is invalid"

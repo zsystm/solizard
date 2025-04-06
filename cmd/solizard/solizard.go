@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -22,6 +23,7 @@ import (
 	"github.com/zsystm/solizard/internal/prompt"
 	"github.com/zsystm/solizard/internal/step"
 	"github.com/zsystm/solizard/internal/validation"
+	"github.com/zsystm/solizard/lib"
 )
 
 //go:embed embeds/*
@@ -34,11 +36,13 @@ var (
 	// default is $HOME/.solizard/abis
 	AbiDir            = "abis"
 	ZeroAddr          = common.Address{}
+	ConfigPath        = ""
 	ConfigExist       = false
 	ContractInfosPath = ""
 	ContractInfoExist = false
 	Conf              *config.Config
 	ContractInfos     []config.ContractInfo
+	ChainInfos        []*lib.ChainInfo
 )
 
 func init() {
@@ -50,60 +54,83 @@ func init() {
 	}
 	dir := homeDir + "/" + SolizardDir
 	AbiDir = dir + "/" + AbiDir
+	ConfigPath = filepath.Join(homeDir, SolizardDir, "config.toml")
 
-	// initialize .solizard default if not exists
-	if _, err := os.Stat(AbiDir); os.IsNotExist(err) {
-		// create solizard and abi directory if not exists
-		if err := os.MkdirAll(AbiDir, 0755); err != nil {
+	if _, err = os.Stat(AbiDir); os.IsNotExist(err) {
+		if err = os.MkdirAll(AbiDir, 0755); err != nil {
 			log.Error(fmt.Sprintf("failed to create abi directory (reason: %v)\n", err))
 			os.Exit(1)
 		}
-		// copy embeds to directory
-		if err = fs.WalkDir(embeddedFiles, "embeds", func(path string, d fs.DirEntry, err error) error {
-			if err != nil {
-				log.Error(err.Error())
-				return err
-			}
-			if d.IsDir() {
-				return nil
-			}
-			data, err := embeddedFiles.ReadFile(path)
-			if err != nil {
-				log.Error(err.Error())
-				return err
-			}
-			// if it is a yaml file, write it to abi directory
-			if d.Type().IsRegular() && d.Name()[len(d.Name())-4:] == ".abi" {
-				if err := os.WriteFile(AbiDir+"/"+d.Name(), data, 0644); err != nil {
-					log.Error(err.Error())
-					return err
-				}
-			}
-			if d.Type().IsRegular() && d.Name() == "config.toml" {
-				if err := os.WriteFile(homeDir+"/"+SolizardDir+"/config.toml", data, 0644); err != nil {
-					log.Error(err.Error())
-					return err
-				}
-			}
-			if d.Type().IsRegular() && d.Name() == "contract_infos.json" {
-				if err := os.WriteFile(homeDir+"/"+SolizardDir+"/contract_infos.json", data, 0644); err != nil {
-					log.Error(err.Error())
-					return err
-				}
-			}
-			return nil
-		}); err != nil {
-			log.Error(fmt.Sprintf("failed to walk embedded files (reason: %v)\n", err))
-		}
-		// copy embeds to abi directory
 	}
-
-	// check if abi directory contains files
-	if err := validation.DirContainsFiles(AbiDir); err != nil {
-		log.Error(err.Error())
+	// copy embeds to directory and files if not exists
+	if err = fs.WalkDir(embeddedFiles, "embeds", func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			log.Error(err.Error())
+			return err
+		}
+		if d.IsDir() {
+			return nil
+		}
+		data, err := embeddedFiles.ReadFile(path)
+		if err != nil {
+			log.Error(err.Error())
+			return err
+		}
+		if d.Type().IsRegular() && d.Name()[len(d.Name())-4:] == ".abi" {
+			abiFile := filepath.Join(AbiDir, d.Name())
+			// If abi file does not exist, create it
+			if _, err = os.Stat(abiFile); os.IsNotExist(err) {
+				if err = os.WriteFile(abiFile, data, 0644); err != nil {
+					log.Error(err.Error())
+					return err
+				}
+			}
+		}
+		if d.Type().IsRegular() && d.Name() == "config.toml" {
+			// If config file does not exist, create it
+			if _, err = os.Stat(ConfigPath); os.IsNotExist(err) {
+				if err = os.WriteFile(ConfigPath, data, 0644); err != nil {
+					log.Error(err.Error())
+					return err
+				}
+			}
+			ConfigExist = true
+		}
+		if d.Type().IsRegular() && d.Name() == "contract_infos.json" {
+			// If contract_infos.json file does not exist, create it
+			ContractInfosPath = filepath.Join(homeDir, SolizardDir, "contract_infos.json")
+			if _, err = os.Stat(ContractInfosPath); os.IsNotExist(err) {
+				// create contract_infos.json if not exists
+				if err = os.WriteFile(ContractInfosPath, data, 0644); err != nil {
+					log.Error(fmt.Sprintf("failed to create contract_infos.json (reason: %v)\n", err))
+					os.Exit(1)
+				}
+			}
+			ContractInfoExist = true
+		}
+		if d.Type().IsRegular() && d.Name() == "chains_mini.json" {
+			// If chains_mini.json file does not exist, create it
+			ChainInfosPath := filepath.Join(homeDir, SolizardDir, "chains_mini.json")
+			if _, err = os.Stat(ChainInfosPath); os.IsNotExist(err) {
+				// create chains_mini.json if not exists
+				if err = os.WriteFile(ChainInfosPath, data, 0644); err != nil {
+					log.Error(fmt.Sprintf("failed to create chains_mini.json (reason: %v)\n", err))
+					os.Exit(1)
+				}
+			}
+			ChainInfos, err = lib.ParseChainsJSON(ChainInfosPath)
+			if err != nil {
+				log.Error(fmt.Sprintf("failed to read chain infos (reason: %v)\n", err))
+				os.Exit(1)
+			}
+		}
+		return nil
+	}); err != nil {
+		// If error occurs, print error message and exit
+		log.Error(fmt.Sprintf("failed to walk embedded files (reason: %v)\n", err))
 		os.Exit(1)
 	}
-	ConfigPath := dir + "/" + "config.toml"
+
 	if Conf, err = config.ReadConfig(ConfigPath); err != nil {
 		log.Error(fmt.Sprintf("failed to read config file (reason: %v)\n", err))
 		ConfigExist = false
@@ -111,33 +138,18 @@ func init() {
 		ConfigExist = true
 	}
 
-	ContractInfosPath = dir + "/" + "contract_infos.json"
-	// Create contract_infos.json if not exists
-	var created bool
-	if _, err := os.Stat(ContractInfosPath); os.IsNotExist(err) {
-		if err := os.WriteFile(ContractInfosPath, []byte("[]"), 0644); err != nil {
-			log.Error(fmt.Sprintf("failed to create contract_infos.json (reason: %v)\n", err))
-			os.Exit(1)
-		}
-		created = true
-	}
-	if created {
-		return
-	}
 	if ContractInfos, err = config.ReadContractInfos(ContractInfosPath); err != nil {
 		log.Error(fmt.Sprintf("failed to read contract infos (reason: %v)\n", err))
 		os.Exit(1)
-	} else {
-		if err = config.ValidateContractInfos(ContractInfos); err != nil {
-			log.Error(fmt.Sprintf("address book is invalid (reason: %v)\n", err))
-			panic(err)
-		}
-		ContractInfoExist = true
+	}
+	if err = config.ValidateContractInfos(ContractInfos); err != nil {
+		log.Error(fmt.Sprintf("address book is invalid (reason: %v)\n", err))
+		panic(err)
 	}
 }
 
 func Run() error {
-	fmt.Println(`🦎 Welcome to Solizard v1.7.1 🦎`)
+	fmt.Println(`🦎 Welcome to Solizard v1.8.0 🦎`)
 	mAbi, err := internalabi.LoadABIs(AbiDir)
 	if err != nil {
 		return err
@@ -147,6 +159,7 @@ func Run() error {
 	if ConfigExist {
 		if prompt.MustSelectApplyConfig() {
 			sctx = ctx.NewCtx(Conf)
+			ctx.PrintContext(sctx, ChainInfos)
 		}
 	}
 
@@ -165,6 +178,10 @@ func Run() error {
 				goto INPUT_RPC_URL
 			}
 			sctx.SetEthClient(client)
+			Conf.RpcURL = rpcURL
+			if err = config.WriteConfig(ConfigPath, Conf); err != nil {
+				log.Error(fmt.Sprintf("failed to write config file (reason: %v)\n", err))
+			}
 		}
 	INPUT_CONTRACT_ADDRESS:
 		// check if address book exists
@@ -196,11 +213,16 @@ func Run() error {
 			if sctx.PrivateKey() == nil {
 				pk := prompt.MustInputPrivateKey()
 				sctx.SetPrivateKey(pk)
+				// Don't write private key to config file for security reasons
 			}
 			// input chainId
 			if sctx.ChainId().Sign() == 0 {
 				chainID := prompt.MustInputChainID()
 				sctx.SetChainId(&chainID)
+				Conf.ChainId = chainID.Uint64()
+				if err = config.WriteConfig(ConfigPath, Conf); err != nil {
+					log.Error(fmt.Sprintf("failed to write config file (reason: %v)\n", err))
+				}
 			}
 		}
 		methodName, method := prompt.MustSelectMethod(selectedAbi, rw)

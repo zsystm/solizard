@@ -4,6 +4,7 @@ go 1.22
 
 require (
 	github.com/ethereum/go-ethereum v1.14.3
+	github.com/fatih/color v1.13.0
 	github.com/pelletier/go-toml v1.2.0
 	github.com/zsystm/promptui v0.0.3
 )
