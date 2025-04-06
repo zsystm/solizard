@@ -18,6 +18,7 @@ import (
 	internalabi "github.com/zsystm/solizard/internal/abi"
 	"github.com/zsystm/solizard/internal/config"
 	"github.com/zsystm/solizard/internal/ctx"
+	"github.com/zsystm/solizard/internal/log"
 	"github.com/zsystm/solizard/internal/prompt"
 	"github.com/zsystm/solizard/internal/step"
 	"github.com/zsystm/solizard/internal/validation"
@@ -44,7 +45,7 @@ func init() {
 	// get user's home directory
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Printf("failed to get user's home directory (reason: %v)\n", err)
+		log.Error(fmt.Sprintf("failed to get user's home directory (reason: %v)\n", err))
 		os.Exit(1)
 	}
 	dir := homeDir + "/" + SolizardDir
@@ -54,12 +55,13 @@ func init() {
 	if _, err := os.Stat(AbiDir); os.IsNotExist(err) {
 		// create solizard and abi directory if not exists
 		if err := os.MkdirAll(AbiDir, 0755); err != nil {
-			fmt.Printf("failed to create abi directory (reason: %v)\n", err)
+			log.Error(fmt.Sprintf("failed to create abi directory (reason: %v)\n", err))
 			os.Exit(1)
 		}
 		// copy embeds to directory
 		if err = fs.WalkDir(embeddedFiles, "embeds", func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
+				log.Error(err.Error())
 				return err
 			}
 			if d.IsDir() {
@@ -67,39 +69,43 @@ func init() {
 			}
 			data, err := embeddedFiles.ReadFile(path)
 			if err != nil {
+				log.Error(err.Error())
 				return err
 			}
 			// if it is a yaml file, write it to abi directory
 			if d.Type().IsRegular() && d.Name()[len(d.Name())-4:] == ".abi" {
 				if err := os.WriteFile(AbiDir+"/"+d.Name(), data, 0644); err != nil {
+					log.Error(err.Error())
 					return err
 				}
 			}
 			if d.Type().IsRegular() && d.Name() == "config.toml" {
 				if err := os.WriteFile(homeDir+"/"+SolizardDir+"/config.toml", data, 0644); err != nil {
+					log.Error(err.Error())
 					return err
 				}
 			}
 			if d.Type().IsRegular() && d.Name() == "contract_infos.json" {
 				if err := os.WriteFile(homeDir+"/"+SolizardDir+"/contract_infos.json", data, 0644); err != nil {
+					log.Error(err.Error())
 					return err
 				}
 			}
 			return nil
 		}); err != nil {
-			fmt.Printf("failed to walk embedded files (reason: %v)\n", err)
+			log.Error(fmt.Sprintf("failed to walk embedded files (reason: %v)\n", err))
 		}
 		// copy embeds to abi directory
 	}
 
 	// check if abi directory contains files
 	if err := validation.DirContainsFiles(AbiDir); err != nil {
-		fmt.Println(err)
+		log.Error(err.Error())
 		os.Exit(1)
 	}
 	ConfigPath := dir + "/" + "config.toml"
 	if Conf, err = config.ReadConfig(ConfigPath); err != nil {
-		fmt.Printf("failed to read config file (reason: %v)\n", err)
+		log.Error(fmt.Sprintf("failed to read config file (reason: %v)\n", err))
 		ConfigExist = false
 	} else {
 		ConfigExist = true
@@ -110,7 +116,8 @@ func init() {
 	var created bool
 	if _, err := os.Stat(ContractInfosPath); os.IsNotExist(err) {
 		if err := os.WriteFile(ContractInfosPath, []byte("[]"), 0644); err != nil {
-			fmt.Printf("failed to create contract_infos.json (reason: %v)\n", err)
+			log.Error(fmt.Sprintf("failed to create contract_infos.json (reason: %v)\n", err))
+			os.Exit(1)
 		}
 		created = true
 	}
@@ -118,11 +125,11 @@ func init() {
 		return
 	}
 	if ContractInfos, err = config.ReadContractInfos(ContractInfosPath); err != nil {
-		fmt.Printf("failed to read contract infos (reason: %v)\n", err)
-		ContractInfoExist = false
+		log.Error(fmt.Sprintf("failed to read contract infos (reason: %v)\n", err))
+		os.Exit(1)
 	} else {
 		if err = config.ValidateContractInfos(ContractInfos); err != nil {
-			fmt.Printf("address book is invalid (reason: %v)\n", err)
+			log.Error(fmt.Sprintf("address book is invalid (reason: %v)\n", err))
 			panic(err)
 		}
 		ContractInfoExist = true
@@ -130,7 +137,7 @@ func init() {
 }
 
 func Run() error {
-	fmt.Println(`🦎 Welcome to Solizard v1.6.0 🦎`)
+	fmt.Println(`🦎 Welcome to Solizard v1.7.1 🦎`)
 	mAbi, err := internalabi.LoadABIs(AbiDir)
 	if err != nil {
 		return err
@@ -154,7 +161,7 @@ func Run() error {
 			rpcURL := prompt.MustInputRpcUrl()
 			client, err := ethclient.Dial(rpcURL)
 			if err != nil {
-				fmt.Printf("failed to connect to given rpc url: %v, please input valid one\n", err)
+				log.Error(fmt.Sprintf("failed to connect to given rpc url: %v, please input valid one\n", err))
 				goto INPUT_RPC_URL
 			}
 			sctx.SetEthClient(client)
@@ -178,7 +185,7 @@ func Run() error {
 			contractAddress = prompt.MustInputContractAddress()
 		}
 		if err := validation.ValidateContractAddress(sctx, contractAddress); err != nil {
-			fmt.Printf("Invalid contract address (reason: %v)\n", err)
+			log.Error(fmt.Sprintf("Invalid contract address (reason: %v)\n", err))
 			goto INPUT_CONTRACT_ADDRESS
 		}
 
@@ -202,10 +209,12 @@ func Run() error {
 			callMsg := ethereum.CallMsg{From: ZeroAddr, To: sctx.ContractAddress(), Data: input}
 			output, err := sctx.EthClient().CallContract(context.TODO(), callMsg, nil)
 			if err != nil {
+				log.Error(fmt.Sprintf("failed to call contract (reason: %v)\n", err))
 				return err
 			}
 			res, err := selectedAbi.Unpack(methodName, output)
 			if err != nil {
+				log.Error(fmt.Sprintf("failed to unpack output (reason: %v)\n", err))
 				return err
 			}
 			fmt.Printf("output: %v\n", res)
@@ -216,12 +225,12 @@ func Run() error {
 			}
 			nonce, err := sctx.EthClient().NonceAt(context.TODO(), crypto.PubkeyToAddress(sctx.PrivateKey().PublicKey), nil)
 			if err != nil {
-				fmt.Printf("failed to get nonce (reason: %v), maybe rpc is not working.\n", err)
+				log.Error(fmt.Sprintf("failed to get nonce (reason: %v), maybe rpc is not working.\n", err))
 				goto INPUT_RPC_URL
 			}
 			gasPrice, err := sctx.EthClient().SuggestGasPrice(context.TODO())
 			if err != nil {
-				fmt.Printf("failed to get gas price (reason: %v), maybe rpc is not working.\n", err)
+				log.Error(fmt.Sprintf("failed to get gas price (reason: %v), maybe rpc is not working.\n", err))
 				goto INPUT_RPC_URL
 			}
 			// TODO: Change to EthClient().EstimateGas() call.
@@ -236,24 +245,24 @@ func Run() error {
 			})
 			signedTx, err := types.SignTx(unsignedTx, types.NewEIP155Signer(sctx.ChainId()), sctx.PrivateKey())
 			if err != nil {
-				fmt.Printf("failed to SignTx (reason: %v)\n", err)
+				log.Error(fmt.Sprintf("failed to sign transaction (reason: %v)\n", err))
 				return err
 			}
 			if err = sctx.EthClient().SendTransaction(context.TODO(), signedTx); err != nil {
-				fmt.Printf("failed to send transaction (reason: %v), maybe rpc is not working.\n", err)
+				log.Error(fmt.Sprintf("failed to send transaction (reason: %v), maybe rpc is not working.\n", err))
 				return err
 			}
-			fmt.Printf("transaction sent (txHash %v).\n", signedTx.Hash().Hex())
+			log.Info(fmt.Sprintf("transaction sent (txHash %v).\n", signedTx.Hash().Hex()))
 			// sleep for x seconds to wait for transaction to be mined
 			waitTime, err := time.ParseDuration(Conf.WaitTime)
-			fmt.Printf("waiting for transaction to be mined... (sleep %s\n", waitTime.String())
+			log.Info(fmt.Sprintf("waiting for transaction to be mined... (sleep %s)\n", waitTime.String()))
 			time.Sleep(waitTime)
 			receipt, err := sctx.EthClient().TransactionReceipt(context.TODO(), signedTx.Hash())
 			if err != nil {
-				fmt.Printf("failed to get transaction receipt (reason: %v).\n", err)
+				log.Error(fmt.Sprintf("failed to get transaction receipt (reason: %v)\n", err))
 			} else {
 				jsonReceipt, _ := receipt.MarshalJSON()
-				fmt.Printf("transaction receipt: %s\n", string(jsonReceipt))
+				log.Info(fmt.Sprintf("transaction receipt: %s\n", string(jsonReceipt)))
 			}
 		}
 		if !useContractInfo {
@@ -266,7 +275,7 @@ func Run() error {
 				},
 			)
 			if err = config.WriteContractInfos(ContractInfosPath, ContractInfos); err != nil {
-				fmt.Printf("failed to write contract infos (reason: %v)\n", err)
+				log.Error(fmt.Sprintf("failed to write contract infos (reason: %v)\n", err))
 			}
 		}
 		st := prompt.MustSelectStep()
