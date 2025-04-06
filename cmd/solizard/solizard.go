@@ -34,6 +34,7 @@ var (
 	AbiDir            = "abis"
 	ZeroAddr          = common.Address{}
 	ConfigExist       = false
+	ContractInfosPath = ""
 	ContractInfoExist = false
 	Conf              *config.Config
 	ContractInfos     []config.ContractInfo
@@ -104,8 +105,19 @@ func init() {
 		ConfigExist = true
 	}
 
-	contractInfosPath := dir + "/" + "contract_infos.json"
-	if ContractInfos, err = config.ReadContractInfos(contractInfosPath); err != nil {
+	ContractInfosPath = dir + "/" + "contract_infos.json"
+	// Create contract_infos.json if not exists
+	var created bool
+	if _, err := os.Stat(ContractInfosPath); os.IsNotExist(err) {
+		if err := os.WriteFile(ContractInfosPath, []byte("[]"), 0644); err != nil {
+			fmt.Printf("failed to create contract_infos.json (reason: %v)\n", err)
+		}
+		created = true
+	}
+	if created {
+		return
+	}
+	if ContractInfos, err = config.ReadContractInfos(ContractInfosPath); err != nil {
 		fmt.Printf("failed to read contract infos (reason: %v)\n", err)
 		ContractInfoExist = false
 	} else {
@@ -242,6 +254,19 @@ func Run() error {
 			} else {
 				jsonReceipt, _ := receipt.MarshalJSON()
 				fmt.Printf("transaction receipt: %s\n", string(jsonReceipt))
+			}
+		}
+		if !useContractInfo {
+			// Save interacted contract address to address book
+			ContractInfos = append(
+				ContractInfos,
+				config.ContractInfo{
+					Name:    selectedContractName,
+					Address: contractAddress,
+				},
+			)
+			if err = config.WriteContractInfos(ContractInfosPath, ContractInfos); err != nil {
+				fmt.Printf("failed to write contract infos (reason: %v)\n", err)
 			}
 		}
 		st := prompt.MustSelectStep()

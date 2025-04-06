@@ -26,6 +26,27 @@ func ReadContractInfos(path string) ([]ContractInfo, error) {
 	return ci, nil
 }
 
+// WriteContractInfos writes the contract information to a file
+func WriteContractInfos(path string, infos []ContractInfo) error {
+	// Validate all contract infos before writing
+	if err := ValidateContractInfos(infos); err != nil {
+		return fmt.Errorf("validation failed: %v", err)
+	}
+
+	// Marshal the contract infos to JSON with indentation for readability
+	data, err := json.MarshalIndent(infos, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal contract infos: %v", err)
+	}
+
+	// Write the data to file with appropriate permissions (0644)
+	if err := os.WriteFile(path, data, 0644); err != nil {
+		return fmt.Errorf("failed to write contract infos to %s: %v", path, err)
+	}
+
+	return nil
+}
+
 func (ci ContractInfo) Validate() error {
 	if ci.Name == "" {
 		return fmt.Errorf("contract name is empty")
