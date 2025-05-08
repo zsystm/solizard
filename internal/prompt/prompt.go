@@ -4,6 +4,8 @@ import (
 	"crypto/ecdsa"
 	"fmt"
 	"math/big"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/ethereum/go-ethereum/accounts/abi"
@@ -212,7 +214,40 @@ func MustCreateInputDataForMethod(method abi.Method) []byte {
 		case abi.IntTy:
 			value, _ = new(big.Int).SetString(strValue, 10)
 		case abi.UintTy:
-			value, _ = new(big.Int).SetString(strValue, 10)
+			parts := regexp.MustCompile(`(u)?int([0-9]*)`).FindStringSubmatch(arg.Type.String())
+			switch parts[2] {
+			case "8":
+				if parts[1] == "u" {
+					value, err = strconv.ParseUint(strValue, 10, 8)
+				} else {
+					value, err = strconv.ParseInt(strValue, 10, 8)
+				}
+			case "16":
+				if parts[1] == "u" {
+					value, err = strconv.ParseUint(strValue, 10, 16)
+				} else {
+					value, err = strconv.ParseInt(strValue, 10, 16)
+				}
+			case "32":
+				if parts[1] == "u" {
+					value, err = strconv.ParseUint(strValue, 10, 32)
+					value = uint32(value.(uint64))
+				} else {
+					value, err = strconv.ParseInt(strValue, 10, 32)
+					value = int32(value.(int64))
+				}
+			case "64":
+				if parts[1] == "u" {
+					value, err = strconv.ParseUint(strValue, 10, 64)
+				} else {
+					value, err = strconv.ParseInt(strValue, 10, 64)
+				}
+			default:
+				value, _ = new(big.Int).SetString(strValue, 10)
+			}
+			if err != nil {
+				panic(err)
+			}
 		case abi.BoolTy:
 			value = strValue == "true"
 		case abi.StringTy:
