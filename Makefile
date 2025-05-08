@@ -4,7 +4,7 @@
 BINARY_NAME := solizard
 
 # Installation directory (GOPATH/bin)
-INSTALL_DIR := $(GOPATH)/bin
+INSTALL_DIR := $(shell go env GOPATH)/bin
 
 # Main package to build
 MAIN_PACKAGE := ./cmd/solizard
